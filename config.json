@@ -1,0 +1,28 @@
+{
+  "prodoc": {
+    "base_url": "https://prodoc.ap.gov.br",
+    "instituicao_id": "e7KB27q8lD",
+    "unidade_organizacional_id": "bKnmJoD6WZ",
+    "endpoint_paginate": "/instituicoes/{instituicao_id}/unidade_organizacionais/{unidade_id}/documentos/paginate/select",
+    "timeout": 30
+  },
+  "api_parameters": {
+    "length": 100,
+    "start": 0,
+    "search": false,
+    "column": "documento_tramitacoes.created_at",
+    "order": "desc",
+    "filtros": false,
+    "findDocumento": false
+  },
+  "claude": {
+    "model": "claude-3-5-haiku-20241022",
+    "max_tokens": 150,
+    "temperature": 0.7
+  },
+  "output": {
+    "format": "json",
+    "include_metadata": true,
+    "timestamp_format": "%Y-%m-%d %H:%M:%S"
+  }
+}
