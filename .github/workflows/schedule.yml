@@ -34,6 +34,7 @@ jobs:
           PRODOC_USER: ${{ secrets.PRODOC_USER }}
           PRODOC_PASSWORD: ${{ secrets.PRODOC_PASSWORD }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          PYTHONUNBUFFERED: "1"
         run: python prodoc_monitor.py
 
       - name: Verificar se arquivo foi gerado
