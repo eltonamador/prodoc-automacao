@@ -25,7 +25,9 @@ class EntregaError(Exception):
 # ----------------------------------------------------------------------
 
 ORDEM_URGENCIA = {"alta": 0, "media": 1, "baixa": 2}
-MARCA_URGENCIA = {"alta": "🔴", "media": "🟡", "baixa": "⚪"}
+# Só a urgência alta ganha marcador. "media" era 1:1 com a linha "Exige
+# providência" logo abaixo, e um ícone que duplica o texto ao lado é ruído.
+MARCA_URGENCIA = {"alta": "🔴"}
 
 
 def ordenar_por_prioridade(documentos: list[dict]) -> list[dict]:
@@ -43,7 +45,7 @@ def ordenar_por_prioridade(documentos: list[dict]) -> list[dict]:
     )
 
 
-def formatar_documento(indice: int, documento: dict) -> str:
+def formatar_documento(indice: int, documento: dict, marcar_sem_trecho: bool = True) -> str:
     marca = MARCA_URGENCIA.get(documento.get("urgencia", "baixa"), "")
     linhas = [
         f"{marca} *{indice}. {documento['tipo']} {documento['numero']}*".strip(),
@@ -53,7 +55,8 @@ def formatar_documento(indice: int, documento: dict) -> str:
         prazo = documento.get("prazo")
         linhas.append(f"*Exige providência*{f' — prazo: {prazo}' if prazo else ''}")
 
-    linhas.append(f"De: {documento['remetente']}")
+    de = documento["remetente"]
+    linhas.append(f"De: {de}" + (" _(cópia)_" if documento.get("copia") else ""))
     if documento.get("data"):
         linhas.append(f"Data: {documento['data']}")
     linhas.append(f"Assunto: {documento['assunto']}")
@@ -62,8 +65,8 @@ def formatar_documento(indice: int, documento: dict) -> str:
     if resumo:
         linhas.append("")
         linhas.append(resumo)
-        if documento.get("origem_resumo") == "titulo":
-            linhas.append("_(resumo a partir do título — a listagem não trouxe trecho)_")
+        if marcar_sem_trecho and documento.get("origem_resumo") == "titulo":
+            linhas.append("_(só pela identificação)_")
     else:
         linhas.append("")
         linhas.append("_(não foi possível gerar o resumo desta vez)_")
@@ -80,7 +83,18 @@ def formatar_mensagem(documentos: list[dict], secao: str) -> str:
     if com_acao:
         cabecalho += f" · *{com_acao} exige{'m' if com_acao > 1 else ''} providência*"
 
-    blocos = [formatar_documento(i, d) for i, d in enumerate(ordenados, 1)]
+    # A ressalva vale para todos quando nenhum documento trouxe texto: repeti-la
+    # em cada item era ruído. Se só alguns vierem sem trecho, marca-se por item.
+    sem_trecho = [d for d in ordenados if d.get("origem_resumo") == "titulo"]
+    todos_sem_trecho = bool(sem_trecho) and len(sem_trecho) == len(ordenados)
+    if todos_sem_trecho:
+        cabecalho += "\n_Avaliado só pela identificação — os documentos não foram abertos._"
+
+    # Quando a ressalva já está no cabeçalho, repeti-la por item é ruído.
+    blocos = [
+        formatar_documento(i, d, marcar_sem_trecho=not todos_sem_trecho)
+        for i, d in enumerate(ordenados, 1)
+    ]
     return cabecalho + "\n\n" + "\n\n".join(blocos)
 
 

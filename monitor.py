@@ -25,6 +25,7 @@ ARQUIVO_RESULTADO = "resultado_prodoc.json"
 ALERTA_AUTENTICACAO = "autenticacao"
 ALERTA_LISTAGEM = "listagem"
 ALERTA_RESUMO = "resumo"
+ALERTA_FILTRO = "filtro_destino"
 
 
 def _alertar(config: dict, estado: Estado, tipo: str, titulo: str, detalhe: str) -> None:
@@ -45,13 +46,14 @@ def _alertar(config: dict, estado: Estado, tipo: str, titulo: str, detalhe: str)
     estado.registrar_alerta(tipo, detalhe)
 
 
-def _coletar(cliente: ProdocClient, config: dict, estado: Estado) -> list[dict]:
-    """Lê as seções ativas e devolve só os documentos não lidos ainda não avisados."""
+def _coletar(cliente: ProdocClient, config: dict, estado: Estado) -> tuple[list[dict], list[str]]:
+    """Lê as seções ativas e devolve (documentos inéditos, seções cujo filtro foi ignorado)."""
     parametros = config.get("resumo", {})
     campos_trecho = parametros.get("campos_trecho", []) or []
     minimo = parametros.get("min_caracteres_trecho", 80)
 
     novos: list[dict] = []
+    filtros_ignorados: list[str] = []
     for secao in secoes_ativas(config):
         nome = secao.get("nome", "seção sem nome")
         unidade = secao.get("unidade_organizacional_id")
@@ -62,15 +64,38 @@ def _coletar(cliente: ProdocClient, config: dict, estado: Estado) -> list[dict]:
         crus = cliente.listar_documentos(unidade)
         nao_lidos = [d for d in crus if doc_utils.esta_nao_lido(d)]
         normalizados = doc_utils.normalizar_lista(nao_lidos, nome, campos_trecho, minimo)
-        ineditos = estado.filtrar_novos(normalizados)
 
+        # A caixa hoje só recebe ABM, mas se passar a receber outra seção o
+        # filtro evita avisar o que não é desta seção.
+        filtro = secao.get("filtro_destino")
+        if filtro and normalizados:
+            if not any(d.get("destino") for d in normalizados):
+                # Se o campo sumir do payload, filtrar por ele descartaria tudo
+                # em silêncio — e silêncio é indistinguível de "nada novo".
+                # Melhor avisar demais do que emudecer sem ninguém perceber.
+                logger.warning(
+                    "Seção %s: nenhum documento traz o campo 'destino'. O filtro "
+                    "'%s' foi ignorado para não descartar tudo em silêncio.",
+                    nome, filtro,
+                )
+                filtros_ignorados.append(nome)
+            else:
+                antes = len(normalizados)
+                normalizados = [d for d in normalizados if d.get("destino") == filtro]
+                if antes != len(normalizados):
+                    logger.info(
+                        "Seção %s: %d documento(s) descartados por destino != %s.",
+                        nome, antes - len(normalizados), filtro,
+                    )
+
+        ineditos = estado.filtrar_novos(normalizados)
         logger.info(
             "Seção %s: %d na listagem, %d não lidos, %d ainda não avisados.",
             nome, len(crus), len(nao_lidos), len(ineditos),
         )
         novos.extend(ineditos)
 
-    return novos
+    return novos, filtros_ignorados
 
 
 def _salvar_resultado(config: dict, novos: list[dict]) -> None:
@@ -115,12 +140,24 @@ def executar(config: dict, credenciais: dict[str, str], dry_run: bool = False) -
 
     # --- coleta ---------------------------------------------------------
     try:
-        novos = _coletar(cliente, config, estado)
+        novos, filtros_ignorados = _coletar(cliente, config, estado)
     except ProdocError as e:
         _alertar(config, estado, ALERTA_LISTAGEM, "Falha ao ler a caixa do Prodoc", str(e))
         estado.salvar()
         return 1
     estado.limpar_alerta(ALERTA_LISTAGEM)
+
+    if filtros_ignorados:
+        _alertar(
+            config, estado, ALERTA_FILTRO,
+            "O campo de seção sumiu da listagem do Prodoc",
+            "Seções afetadas: {}. Os documentos estão sendo avisados sem o filtro, "
+            "então pode chegar coisa de outra seção. O formato do Prodoc mudou.".format(
+                ", ".join(filtros_ignorados)
+            ),
+        )
+    else:
+        estado.limpar_alerta(ALERTA_FILTRO)
 
     if not novos:
         logger.info("Nenhum documento novo. Nada a enviar.")

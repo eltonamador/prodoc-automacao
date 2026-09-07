@@ -4,6 +4,7 @@
 Comandos:
     configurar      Grava o .env com as credenciais, perguntando no terminal.
     descobrir       Mapeia as seções da conta e os campos do JSON de listagem.
+    diagnosticar    Investiga por que a listagem está respondendo erro.
     monitorar       Verifica os documentos novos e envia o resumo.
     testar-envio    Manda uma mensagem de teste pelo canal de entrega.
 
@@ -15,8 +16,14 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import warnings
 
 from configuracao import carregar_config, carregar_credenciais
+
+# O Python 3.9 do macOS é compilado com LibreSSL, e o urllib3 avisa sobre isso a
+# cada execução. É ruído cosmético que atrapalha enxergar o erro real nos logs.
+# Fica antes de qualquer import de requests, que é sempre sob demanda.
+warnings.filterwarnings("ignore", message=".*OpenSSL 1.1.1+.*")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,6 +42,19 @@ def _cmd_descobrir(args) -> int:
         return descobrir.executar(config, credenciais)
     except ProdocError as e:
         logger.error("Descoberta interrompida: %s", e)
+        return 1
+
+
+def _cmd_diagnosticar(args) -> int:
+    import diagnosticar
+    from prodoc_client import ProdocError
+
+    config = carregar_config(args.config)
+    credenciais = carregar_credenciais()
+    try:
+        return diagnosticar.executar(config, credenciais)
+    except ProdocError as e:
+        logger.error("Diagnóstico interrompido: %s", e)
         return 1
 
 
@@ -71,6 +91,9 @@ def construir_parser() -> argparse.ArgumentParser:
 
     p_desc = sub.add_parser("descobrir", help="mapeia seções e campos da listagem (somente leitura)")
     p_desc.set_defaults(func=_cmd_descobrir)
+
+    p_diag = sub.add_parser("diagnosticar", help="investiga por que a listagem está falhando")
+    p_diag.set_defaults(func=_cmd_diagnosticar)
 
     p_cfg = sub.add_parser("configurar", help="grava o .env com as credenciais (pergunta no terminal)")
     p_cfg.set_defaults(func=_cmd_configurar)

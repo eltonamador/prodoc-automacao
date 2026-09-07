@@ -170,11 +170,23 @@ class ProdocClient:
         """
         resposta = self._requisitar_listagem(unidade_id, length=1)
         tipo = resposta.headers.get("Content-Type", "")
-        if resposta.status_code != 200:
+        if resposta.status_code >= 500:
+            # 500 é erro DO SERVIDOR: ele recebeu a requisição e quebrou ao
+            # processá-la. Culpar a senha aqui manda o diagnóstico para o lado
+            # errado — o suspeito é o id da unidade ou o formato dos parâmetros.
             raise ProdocError(
-                f"Listagem respondeu HTTP {resposta.status_code} — sessão provavelmente inválida "
-                "(usuário ou senha incorretos?)."
+                f"A listagem respondeu HTTP {resposta.status_code} (erro do servidor Prodoc). "
+                "O login foi aceito, então não são as credenciais: provavelmente o id da "
+                "unidade organizacional ou os parâmetros da consulta mudaram. "
+                "Rode 'prodoc_monitor.py diagnosticar' para identificar."
             )
+        if resposta.status_code in (401, 403):
+            raise ProdocError(
+                f"A listagem respondeu HTTP {resposta.status_code} — sessão recusada. "
+                "Confira usuário e senha com 'prodoc_monitor.py configurar'."
+            )
+        if resposta.status_code != 200:
+            raise ProdocError(f"A listagem respondeu HTTP {resposta.status_code}.")
         if "json" not in tipo.lower():
             raise ProdocError(
                 "Listagem devolveu '{}' em vez de JSON — o Prodoc retornou a tela "
@@ -186,6 +198,22 @@ class ProdocClient:
     # Leitura de listagens
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _serializar_params(params: dict) -> dict:
+        """Converte booleanos para 'true'/'false' minúsculos.
+
+        O requests serializa True/False do Python como "True"/"False" com
+        maiúscula, e o Prodoc responde HTTP 500 a isso. Foi a causa raiz da
+        falha original: o erro era tratado como "caixa vazia", então o
+        monitoramento terminava com sucesso sem nunca ter lido nada.
+        A conversão fica aqui para o config.json continuar com booleanos JSON
+        de verdade, em vez de strings disfarçadas.
+        """
+        return {
+            chave: ("true" if valor else "false") if isinstance(valor, bool) else valor
+            for chave, valor in params.items()
+        }
+
     def _requisitar_listagem(self, unidade_id: str, length: int | None = None) -> requests.Response:
         caminho = self.endpoint_paginate.format(
             instituicao_id=self.instituicao_id,
@@ -194,7 +222,7 @@ class ProdocClient:
         params = dict(self.parametros_listagem)
         if length is not None:
             params["length"] = length
-        return self._get(caminho, params=params, headers={
+        return self._get(caminho, params=self._serializar_params(params), headers={
             "X-Requested-With": "XMLHttpRequest",
             "Accept": "application/json, text/javascript, */*; q=0.01",
         })

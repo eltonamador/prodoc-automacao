@@ -5,6 +5,7 @@
 estado_notificados.json
 descoberta_payload.json
 descoberta_unidades.json
+diagnostico_respostas.json
 resultado_prodoc.json
 *.log
 

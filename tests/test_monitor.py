@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import documentos as doc_utils
 import entrega
+import monitor as monitor_mod
 import resumo as resumo_mod
 from estado import Estado, chave_do_documento
 from prodoc_client import ProdocClient, RotaNaoPermitida, _regex_da_rota
@@ -222,10 +223,26 @@ def test_documento_sem_resumo_avisa_em_vez_de_omitir():
     assert "não foi possível gerar o resumo" in entrega.formatar_documento(1, m)
 
 
-def test_resumo_de_titulo_e_sinalizado():
-    m = doc_utils.normalizar(DOC_PLANO, "ABM", [], 80)
-    m["resumo"], m["origem_resumo"] = "Pedido de material.", "titulo"
-    assert "a partir do título" in entrega.formatar_documento(1, m)
+def test_ressalva_do_trecho_vai_para_o_cabecalho_quando_vale_para_todos():
+    """Repetir a ressalva em cada item era ruído: sem trecho é a regra, não a exceção."""
+    docs = []
+    for numero in ("A", "B"):
+        m = doc_utils.normalizar(dict(DOC_PLANO, numero=numero), "ABM", [], 80)
+        m["resumo"], m["origem_resumo"] = "resumo", "titulo"
+        docs.append(m)
+    texto = entrega.formatar_mensagem(docs, "ABM")
+    assert "não foram abertos" in texto
+    assert texto.count("_(só pela identificação)_") == 0
+
+
+def test_ressalva_fica_no_item_quando_só_alguns_ficaram_sem_trecho():
+    com = doc_utils.normalizar(dict(DOC_PLANO, numero="A"), "ABM", [], 80)
+    com["resumo"], com["origem_resumo"] = "resumo", "trecho"
+    sem = doc_utils.normalizar(dict(DOC_PLANO, numero="B"), "ABM", [], 80)
+    sem["resumo"], sem["origem_resumo"] = "resumo", "titulo"
+    texto = entrega.formatar_mensagem([com, sem], "ABM")
+    assert texto.count("_(só pela identificação)_") == 1
+    assert "não foram abertos" not in texto
 
 
 def test_entrega_sem_destino_falha_com_mensagem_util(monkeypatch):
@@ -391,3 +408,144 @@ def test_prazo_com_trecho_e_preservado(monkeypatch):
     ]})
     _resumidor(monkeypatch, [payload]).resumir_lista(docs)
     assert docs[0]["prazo"] == "12/09/2026"
+
+
+# ----------------------------------------------------------------------
+# Serialização de parâmetros: a causa raiz da falha original
+# ----------------------------------------------------------------------
+
+def test_booleanos_viram_minusculo_na_query():
+    """O Prodoc responde HTTP 500 a "False" com maiúscula (confirmado ao vivo)."""
+    saida = ProdocClient._serializar_params(
+        {"search": False, "filtros": False, "findDocumento": True, "length": 100, "order": "desc"}
+    )
+    assert saida["search"] == "false"
+    assert saida["filtros"] == "false"
+    assert saida["findDocumento"] == "true"
+    # Não-booleanos passam intactos.
+    assert saida["length"] == 100 and saida["order"] == "desc"
+
+
+def test_config_do_projeto_mantem_booleanos_json_de_verdade():
+    """A correção fica no transporte; o config não deve virar strings disfarçadas."""
+    assert CONFIG["api_parameters"]["search"] is False
+
+
+# ----------------------------------------------------------------------
+# Forma real do payload da ABM (verificada em 07/09/2026).
+# Conteúdo sintético: dado interno do CBMAP não entra em repositório público.
+# ----------------------------------------------------------------------
+
+DOC_REAL = {
+    "id": "x6X4NN1a60",
+    "documento": {"id": "x6X4NN1a60", "lido": False, "tipo": 726},
+    "documento_tramitacao_id": "x6X4NN1a60",
+    "tipo": {"0": "OFIC", "nome": "OFICIO INTERNO"},
+    "numero": "0090/2026/T4 CFSD BM 2026.2 - CG/CBMAP",
+    "assunto": {"assunto": "<strong>ESCALA N&ordm; 009/2026 COORDENAÇÃO</strong>",
+                "id": "x6X4NN1a60", "url": "https://prodoc.ap.gov.br/documentos/x"},
+    "assunto_controle_distribuicao": "ESCALA Nº 009/2026 COORDENAÇÃO",
+    "origem": {"sigla": "T4 CFSD BM 2026.2 - CG", "nome": "T4 CFSD BM 2026.2 - COORDENAÇÃO GERAL"},
+    "destino": "ABM",
+    "destino_nome": "ACADEMIA DE BOMBEIRO MILITAR",
+    "instituicao_origem": "CBMAP",
+    "instituicao_origem_nome": "CORPO DE BOMBEIROS MILITAR DO ESTADO DO AMAPÁ",
+    "instituicao_destino_nome": "CORPO DE BOMBEIROS MILITAR DO ESTADO DO AMAPÁ",
+    "data_criacao": "06/09/2026 21:15",
+    "copia": True,
+}
+
+
+def test_payload_real_extrai_todos_os_metadados():
+    m = doc_utils.normalizar(DOC_REAL, "ABM", [], 80)
+    assert m["numero"] == "0090/2026/T4 CFSD BM 2026.2 - CG/CBMAP"
+    assert m["tipo"] == "OFICIO INTERNO"
+    assert m["destino"] == "ABM"
+    assert m["data"] == "06/09/2026 21:15"
+    assert m["copia"] is True
+    assert m["chave"] == "id:x6X4NN1a60"
+
+
+def test_html_e_entidades_do_assunto_sao_limpos():
+    m = doc_utils.normalizar(DOC_REAL, "ABM", [], 80)
+    assert m["assunto"] == "ESCALA Nº 009/2026 COORDENAÇÃO"
+    assert "<strong>" not in m["assunto"] and "&ordm;" not in m["assunto"]
+
+
+def test_remetente_usa_a_unidade_e_nao_a_instituicao():
+    """instituicao_origem_nome é igual nos 100 documentos — não distingue nada."""
+    m = doc_utils.normalizar(DOC_REAL, "ABM", [], 80)
+    assert m["remetente"] == "T4 CFSD BM 2026.2 - COORDENAÇÃO GERAL"
+
+
+def test_assunto_alternativo_e_omitido_quando_repete_o_assunto():
+    m = doc_utils.normalizar(DOC_REAL, "ABM", [], 80)
+    assert m["assunto_alternativo"] == ""
+
+
+def test_assunto_alternativo_aparece_quando_acrescenta_informacao():
+    doc = dict(DOC_REAL, assunto_controle_distribuicao="COLÉGIO X - SOLICITAÇÃO DE PALESTRA")
+    m = doc_utils.normalizar(doc, "ABM", [], 80)
+    assert m["assunto_alternativo"] == "COLÉGIO X - SOLICITAÇÃO DE PALESTRA"
+
+
+def test_payload_real_e_reconhecido_como_nao_lido():
+    assert doc_utils.esta_nao_lido(DOC_REAL)
+    assert not doc_utils.esta_nao_lido({**DOC_REAL, "documento": {"id": "x", "lido": True}})
+
+
+def test_copia_aparece_marcada_na_mensagem():
+    m = doc_utils.normalizar(DOC_REAL, "ABM", [], 80)
+    m["resumo"], m["origem_resumo"] = "resumo", "titulo"
+    assert "(cópia)" in entrega.formatar_documento(1, m)
+
+
+def test_so_urgencia_alta_ganha_marcador():
+    """Marcador em 'media' duplicava a linha 'Exige providência' logo abaixo."""
+    assert "🔴" in entrega.formatar_documento(1, _doc("A", urgencia="alta"))
+    for nivel in ("media", "baixa"):
+        texto = entrega.formatar_documento(1, _doc("A", urgencia=nivel))
+        assert "🔴" not in texto and "🟡" not in texto and "⚪" not in texto
+        assert texto.startswith("*1. Ofício A*")
+
+
+# ----------------------------------------------------------------------
+# Filtro de seção: nunca emudecer em silêncio
+# ----------------------------------------------------------------------
+
+
+
+class _ClienteFake:
+    def __init__(self, documentos):
+        self._documentos = documentos
+
+    def listar_documentos(self, unidade):
+        return self._documentos
+
+
+def _config_uma_secao():
+    return {
+        "secoes": [{"nome": "ABM", "unidade_organizacional_id": "u1",
+                    "ativa": True, "filtro_destino": "ABM"}],
+        "resumo": {"campos_trecho": [], "min_caracteres_trecho": 80},
+    }
+
+
+def test_filtro_descarta_documento_de_outra_secao(tmp_path):
+    docs = [dict(DOC_REAL, destino="ABM"), dict(DOC_REAL, destino="EFR", id="outro",
+                 documento={"id": "outro", "lido": False})]
+    novos, ignorados = monitor_mod._coletar(
+        _ClienteFake(docs), _config_uma_secao(), Estado(str(tmp_path / "e.json"))
+    )
+    assert [d["destino"] for d in novos] == ["ABM"]
+    assert ignorados == []
+
+
+def test_campo_destino_ausente_ignora_o_filtro_em_vez_de_apagar_tudo(tmp_path):
+    """Se o Prodoc parar de mandar 'destino', filtrar por ele silenciaria o monitor."""
+    sem_destino = {k: v for k, v in DOC_REAL.items() if k not in ("destino", "destino_nome")}
+    novos, ignorados = monitor_mod._coletar(
+        _ClienteFake([sem_destino]), _config_uma_secao(), Estado(str(tmp_path / "e.json"))
+    )
+    assert len(novos) == 1, "o documento não pode sumir por causa de um campo que o Prodoc removeu"
+    assert ignorados == ["ABM"], "e a seção afetada precisa ser reportada para virar alerta"

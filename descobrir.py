@@ -138,6 +138,36 @@ def mapear_campos(documentos: list[dict]) -> list[dict]:
     return campos
 
 
+def distribuir_valores(documentos: list[dict], campos: list[str], limite: int = 12) -> dict:
+    """Contagem dos valores de campos categóricos.
+
+    É o que diz se a caixa já vem filtrada por seção ou se é preciso filtrar
+    no código — e quais outros valores existiriam para configurar depois.
+    """
+    resultado = {}
+    for campo in campos:
+        contagem: dict[str, int] = {}
+        for documento in documentos:
+            valor = valor_em(documento, campo)
+            if valor is None:
+                continue
+            chave = str(valor)[:60]
+            contagem[chave] = contagem.get(chave, 0) + 1
+        if contagem:
+            ordenado = sorted(contagem.items(), key=lambda par: -par[1])
+            resultado[campo] = {"total_distintos": len(ordenado), "top": ordenado[:limite]}
+    return resultado
+
+
+def valor_em(documento: dict, caminho: str):
+    atual = documento
+    for parte in caminho.split("."):
+        if not isinstance(atual, dict) or parte not in atual:
+            return None
+        atual = atual[parte]
+    return atual
+
+
 def candidatos_a_trecho(campos: list[dict]) -> list[dict]:
     """Campos textuais longos o bastante para render um resumo de verdade."""
     return [
@@ -248,7 +278,32 @@ def executar(config: dict, credenciais: dict[str, str]) -> int:
     print("\n  Campo 'lido' localizado em: {}".format(
         ", ".join(c["campo"] for c in campos if c["campo"].endswith("lido")) or "NÃO ENCONTRADO"))
 
+    # --- distribuição dos campos categóricos --------------------------
+    print("\n" + "=" * 72)
+    print("3. DISTRIBUIÇÃO DOS CAMPOS DE CLASSIFICAÇÃO")
+    print("=" * 72)
+
+    campos_categoricos = [
+        "destino", "destino_nome", "instituicao_destino", "instituicao_origem",
+        "tipo.nome", "copia", "distribuicao", "apenas_criado", "documento.lido",
+    ]
+    distribuicao = distribuir_valores(documentos, campos_categoricos)
+    for campo, dados in distribuicao.items():
+        print(f"\n  {campo}  ({dados['total_distintos']} valor(es) distinto(s))")
+        for valor, quantidade in dados["top"]:
+            print(f"      {quantidade:>4}x  {valor}")
+
+    nao_lidos = [d for d in documentos if valor_em(d, "documento.lido") is False]
+    print(f"\n  Não lidos na amostra: {len(nao_lidos)} de {len(documentos)}")
+    if nao_lidos:
+        print("  Destino dos não lidos:")
+        for valor, quantidade in distribuir_valores(nao_lidos, ["destino"]).get(
+            "destino", {}
+        ).get("top", []):
+            print(f"      {quantidade:>4}x  {valor}")
+
     amostra = {
+        "distribuicao": distribuicao,
         "unidade_organizacional_id": unidade_base,
         "total_documentos": len(documentos),
         "campos": campos,

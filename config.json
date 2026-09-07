@@ -10,7 +10,8 @@
       "nome": "ABM",
       "unidade_organizacional_id": "bKnmJoD6WZ",
       "ativa": true,
-      "_comentario": "id herdado da versão anterior — confirmar com 'python3 prodoc_monitor.py descobrir'"
+      "_comentario": "Confirmado em 07/09/2026: a unidade bKnmJoD6WZ é a caixa da ABM — os 100 documentos da listagem têm destino=ABM. filtro_destino é uma trava: se a caixa passar a receber outra seção, só o que for ABM é avisado. Para monitorar outra seção, acrescente uma entrada nesta lista.",
+      "filtro_destino": "ABM"
     }
   ],
   "api_parameters": {
@@ -26,7 +27,7 @@
     "model": "claude-haiku-4-5",
     "min_caracteres_trecho": 80,
     "campos_trecho": [],
-    "_comentario": "campos_trecho: caminhos pontilhados em ordem de preferência (ex: documento.conteudo). Vazio = só título. Preencher com a saída de 'descobrir'. saida_estruturada=false força o modo antigo, uma chamada de texto por documento.",
+    "_comentario": "campos_trecho vazio de propósito: verificado em 07/09/2026 que a listagem do Prodoc NÃO devolve o corpo do documento (campo mais longo é o assunto, ~65 caracteres). O resumo sai da identificação. Se o Prodoc passar a expor um trecho, basta listar o caminho aqui. saida_estruturada=false volta ao modo antigo, uma chamada por documento.",
     "saida_estruturada": true,
     "max_tokens_por_documento": 220
   },

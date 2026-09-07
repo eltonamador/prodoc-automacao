@@ -25,11 +25,23 @@ import anthropic
 logger = logging.getLogger(__name__)
 
 SISTEMA = (
-    "Você faz a triagem de documentos administrativos do Corpo de Bombeiros Militar do "
-    "Amapá para um aviso rápido no WhatsApp. Escreva em português do Brasil, direto ao "
-    "ponto, sem markdown e sem repetir o número do documento. Quando houver apenas os "
-    "dados de identificação e nenhum trecho do texto, diga só o que se pode inferir do "
-    "assunto e nunca invente detalhes, prazos ou exigências."
+    "Você faz a triagem da caixa de entrada da Academia de Bombeiro Militar do Amapá "
+    "(ABM) para um aviso rápido no WhatsApp. Escreva em português do Brasil, sem "
+    "markdown e sem repetir o número do documento.\n\n"
+    "IMPORTANTE: você recebe apenas a identificação do documento — tipo, assunto e "
+    "unidade de origem — e nunca o texto integral, porque abrir o documento o marcaria "
+    "como lido. O assunto já será exibido ao leitor logo acima do seu texto, então "
+    "parafraseá-lo não ajuda em nada. Escreva o que o assunto NÃO diz: em uma frase "
+    "curta, o que isso tende a exigir da Academia, ou a que rotina pertence. Quando não "
+    "houver nada a acrescentar, diga que é informativo e pare — uma frase honesta e "
+    "curta vale mais que uma paráfrase.\n\n"
+    "Nunca invente prazos, números, nomes ou exigências que não estejam nos dados.\n\n"
+    "Calibragem da urgência (a maioria dos documentos é baixa):\n"
+    "- alta: prazo explícito, convocação, exigência de resposta formal, ou risco "
+    "operacional imediato;\n"
+    "- media: pede uma providência da Academia, sem prazo declarado;\n"
+    "- baixa: informativo, escala de rotina, circular ampla, ou recebido como cópia.\n"
+    "Use 'alta' com parcimônia. Se tudo parecer igual, é sinal de que é tudo baixa."
 )
 
 ESQUEMA = {
@@ -50,7 +62,10 @@ ESQUEMA = {
                     },
                     "resumo": {
                         "type": "string",
-                        "description": "40 a 70 palavras com trecho; até 25 palavras sem trecho.",
+                        "description": (
+                            "Uma frase de até 25 palavras que acrescente algo ao assunto, sem "
+                            "parafraseá-lo. Até 60 palavras quando houver trecho do documento."
+                        ),
                     },
                     "urgencia": {"type": "string", "enum": ["alta", "media", "baixa"]},
                     "acao_requerida": {
@@ -98,17 +113,32 @@ def _prazo_confiavel(documento: dict, prazo: str | None) -> str | None:
 
 
 def _bloco_do_documento(indice: int, documento: dict) -> str:
+    """Monta o que sabemos do documento.
+
+    A listagem do Prodoc não traz o corpo do documento (verificado contra os
+    dados reais da ABM), então o que existe é a identificação. Vale reunir tudo
+    que ela oferece — inclusive o assunto de distribuição, que às vezes descreve
+    o caso em linguagem mais concreta que o assunto formal.
+    """
     linhas = [
         f"[{indice}]",
         f"Tipo: {documento['tipo']}",
         f"Assunto: {documento['assunto']}",
-        f"Remetente: {documento['remetente']}",
     ]
+    if documento.get("assunto_alternativo"):
+        linhas.append(f"Assunto na distribuição: {documento['assunto_alternativo']}")
+    linhas.append(f"Enviado por: {documento['remetente']}")
+    if documento.get("copia"):
+        linhas.append("Recebido como CÓPIA (encaminhado para conhecimento, não endereçado diretamente).")
+
     trecho = documento.get("trecho")
     if trecho:
         linhas.append(f"Trecho do documento: {trecho[:LIMITE_TRECHO]}")
     else:
-        linhas.append("Trecho do documento: NÃO DISPONÍVEL — resuma só pela identificação acima.")
+        linhas.append(
+            "Texto do documento: NÃO DISPONÍVEL — não abrimos o documento, "
+            "para não marcá-lo como lido no sistema."
+        )
     return "\n".join(linhas)
 
 

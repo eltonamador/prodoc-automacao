@@ -91,16 +91,32 @@ persistente não gere uma mensagem por hora. Se o próprio canal de entrega
 estiver fora, sobra o log e o código de saída diferente de zero, que o systemd
 registra.
 
+## O que a listagem do Prodoc realmente entrega
+
+Verificado contra a caixa da ABM em 07/09/2026, com 100 documentos:
+
+- **Não existe trecho do documento.** O campo mais longo é o assunto (~65
+  caracteres, com HTML). O corpo só sairia abrindo o documento, o que o
+  marcaria como lido. Então a triagem trabalha com a identificação.
+- A unidade `bKnmJoD6WZ` **é** a caixa da ABM: `destino` = ABM nos 100.
+- O remetente útil é `origem.nome` (a unidade). `instituicao_origem_nome` é
+  "CORPO DE BOMBEIROS MILITAR DO ESTADO DO AMAPÁ" em todos — não distingue nada.
+- `documento.lido` diz o que é novo; `copia` marca o que veio para conhecimento.
+
 ## Triagem
 
 Os documentos vão para o Claude numa **única chamada**, com a resposta validada
-contra um JSON Schema. Além do resumo, cada documento volta com urgência, se
-exige providência e o prazo — e a mensagem no WhatsApp é reordenada para que o
-que tem prazo apareça primeiro.
+contra um JSON Schema. Como não há texto para resumir, o modelo não parafraseia
+o assunto: ele classifica urgência, diz se exige providência, e acrescenta em
+uma frase o que aquilo tende a significar para a Academia. A mensagem é
+reordenada — o que exige providência vem primeiro.
 
-Trava contra alucinação: se o documento não trouxe trecho, um prazo que não
-apareça no assunto é descartado. Prazo inventado num aviso operacional é pior
-que prazo nenhum.
+Duas travas contra invenção:
+
+- prazo que não esteja no texto que realmente enviamos é descartado em código;
+- se o campo `destino` sumir do payload, o filtro de seção é **ignorado** em vez
+  de descartar tudo — e isso vira alerta. Silêncio é indistinguível de "nada
+  novo", e foi assim que a versão anterior falhou sem ninguém perceber.
 
 Se a saída estruturada falhar por qualquer motivo, o código volta sozinho ao
 modo antigo — uma chamada de texto simples por documento.
@@ -111,6 +127,18 @@ modo antigo — uma chamada de texto simples por documento.
 uv run pytest
 uv run ruff check .
 ```
+
+## A falha original
+
+Duas causas, ambas corrigidas:
+
+1. **Booleanos com maiúscula.** O `config.json` traz `"search": false`, que o
+   `requests` serializava como a string `"False"` na URL — e o Prodoc responde
+   HTTP 500 a isso. O código antigo tratava o 500 como "caixa vazia" e
+   encerrava com sucesso: **o job ficava verde sem nunca ter lido nada.** Agora
+   a conversão para `"false"` acontece no transporte, e um 500 vira erro alto.
+2. **Cron desativado.** O GitHub desliga workflows agendados após 60 dias sem
+   atividade no repositório. Sem execução, nem o código de erro aparecia.
 
 ## Por que não roda mais no GitHub Actions
 
