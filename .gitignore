@@ -1,0 +1,17 @@
+# Credenciais — nunca commitar
+.env
+
+# Estado e saídas locais (ficam na VPS, não no repositório)
+estado_notificados.json
+descoberta_payload.json
+descoberta_unidades.json
+resultado_prodoc.json
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/

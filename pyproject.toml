@@ -1,0 +1,38 @@
+[project]
+name = "prodoc-automacao"
+version = "2.0.0"
+description = "Monitor de documentos não lidos do Prodoc (CBMAP) com resumo via Claude e aviso no WhatsApp"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    # Compatível com o SDK 0.x (Python 3.9) e 1.x (Python >= 3.10):
+    # usamos só Anthropic(api_key=...), messages.create() e messages.parse().
+    "anthropic>=0.125.0,<2",
+    "requests>=2.32.0,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.16",
+]
+
+[tool.uv]
+# Projeto de aplicação, não biblioteca: não há nada para empacotar.
+package = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff.lint.isort]
+# Habilita as anotações modernas (dict[str, X]) mesmo mirando Python 3.9.
+required-imports = ["from __future__ import annotations"]

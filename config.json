@@ -2,10 +2,17 @@
   "prodoc": {
     "base_url": "https://prodoc.ap.gov.br",
     "instituicao_id": "e7KB27q8lD",
-    "unidade_organizacional_id": "bKnmJoD6WZ",
     "endpoint_paginate": "/instituicoes/{instituicao_id}/unidade_organizacionais/{unidade_id}/documentos/paginate/select",
     "timeout": 30
   },
+  "secoes": [
+    {
+      "nome": "ABM",
+      "unidade_organizacional_id": "bKnmJoD6WZ",
+      "ativa": true,
+      "_comentario": "id herdado da versão anterior — confirmar com 'python3 prodoc_monitor.py descobrir'"
+    }
+  ],
   "api_parameters": {
     "length": 100,
     "start": 0,
@@ -15,14 +22,35 @@
     "filtros": false,
     "findDocumento": false
   },
-  "claude": {
-    "model": "claude-3-5-haiku-20241022",
-    "max_tokens": 150,
-    "temperature": 0.7
+  "resumo": {
+    "model": "claude-haiku-4-5",
+    "min_caracteres_trecho": 80,
+    "campos_trecho": [],
+    "_comentario": "campos_trecho: caminhos pontilhados em ordem de preferência (ex: documento.conteudo). Vazio = só título. Preencher com a saída de 'descobrir'. saida_estruturada=false força o modo antigo, uma chamada de texto por documento.",
+    "saida_estruturada": true,
+    "max_tokens_por_documento": 220
+  },
+  "entrega": {
+    "canal": "openclaw",
+    "openclaw": {
+      "modo": "http",
+      "url": "",
+      "destino": "",
+      "cabecalho_auth": "Authorization",
+      "campo_destino": "chat_id",
+      "campo_texto": "text",
+      "comando": [],
+      "timeout": 20,
+      "_comentario": "url e destino vêm do .env (OPENCLAW_URL / OPENCLAW_DESTINO) — o repositório é público."
+    },
+    "max_caracteres_mensagem": 3500
+  },
+  "estado": {
+    "arquivo": "estado_notificados.json",
+    "reter_dias": 90,
+    "cooldown_alerta_horas": 24
   },
   "output": {
-    "format": "json",
-    "include_metadata": true,
     "timestamp_format": "%Y-%m-%d %H:%M:%S"
   }
 }

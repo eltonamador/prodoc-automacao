@@ -1,0 +1,16 @@
+[Unit]
+Description=Agenda do monitor Prodoc (horário de Brasília)
+
+[Timer]
+# Amapá é UTC-3. O sufixo de fuso exige systemd >= 252; se a sua versão for
+# anterior, remova " America/Belem" das duas linhas e ajuste o fuso da VPS com
+#   sudo timedatectl set-timezone America/Belem
+# Dias úteis: de hora em hora, 06:00–18:00.
+OnCalendar=Mon..Fri 06..18:00 America/Belem
+# Fim de semana: duas vezes por dia.
+OnCalendar=Sat,Sun 09,21:00 America/Belem
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

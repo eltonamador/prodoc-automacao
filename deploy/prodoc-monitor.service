@@ -1,0 +1,20 @@
+[Unit]
+Description=Monitor de documentos não lidos do Prodoc (seção ABM)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/prodoc-automacao
+EnvironmentFile=/opt/prodoc-automacao/.env
+ExecStart=/opt/prodoc-automacao/.venv/bin/python prodoc_monitor.py monitorar
+
+# O estado e o .env vivem no WorkingDirectory; o resto do sistema fica só-leitura.
+ProtectSystem=strict
+ReadWritePaths=/opt/prodoc-automacao
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
