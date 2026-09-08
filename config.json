@@ -12,8 +12,8 @@
       "ativa": true,
       "_comentario": "Confirmado em 07/09/2026: a unidade bKnmJoD6WZ é a caixa da ABM — os 100 documentos da listagem têm destino=ABM. filtro_destino é uma trava: se a caixa passar a receber outra seção, só o que for ABM é avisado. Para monitorar outra seção, acrescente uma entrada nesta lista.",
       "filtro_destino": "ABM",
-      "monitorar_saida": true,
-      "_comentario_saida": "monitorar_saida: avisa também os documentos que a própria seção emitiu (apenas_criado=true no payload). Eles nascem com lido=true, então nunca apareceriam pela regra de não lidos."
+      "monitorar_saida": false,
+      "_comentario_saida": "Desativado por decisão de 08/09/2026 — fica de reserva, caso o comando peça. true faz o monitor avisar também os documentos que a própria seção emitiu (apenas_criado=true no payload), com formato próprio: 'Situação' e 'Criado em' no lugar de remetente, sem urgência nem 'exige providência'. Eles nascem com lido=true, então nunca apareceriam pela regra de não lidos. AO REATIVAR: rode antes 'monitorar --marcar-sem-enviar', senão o acumulado de emitidos vai todo de uma vez para o grupo. LIMITAÇÃO CONHECIDA: o Prodoc não expõe 'aguardando assinatura' nem 'em rascunho' em campo algum da listagem (varrido nos 100 documentos); a única situação que o dado sustenta é 'criado, ainda não tramitado'."
     }
   ],
   "api_parameters": {

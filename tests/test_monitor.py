@@ -722,3 +722,36 @@ def test_sem_emitidos_a_mensagem_nao_ganha_secoes():
     """Mensagem só com recebidos continua igual à de antes desta mudança."""
     texto = entrega.formatar_mensagem([_doc("A"), _doc("B")], "ABM")
     assert "RECEBIDOS" not in texto and "EMITIDOS" not in texto
+
+
+def test_monitorar_saida_desligado_ignora_emitidos(tmp_path, monkeypatch):
+    """Desligado é o padrão em produção — este teste trava esse contrato.
+
+    Vale inclusive para um emitido que aparecesse como não lido: ele não pode
+    vazar para a lista de recebidos, onde sairia como se a ABM tivesse mandado
+    um ofício para si mesma.
+    """
+    emitido_nao_lido = dict(DOC_SAIDA, documento={"id": "zz", "lido": False})
+    crus = [DOC_REAL, DOC_SAIDA, emitido_nao_lido]
+
+    class _Cliente:
+        def listar_documentos(self, u): return crus
+
+    config = {
+        "secoes": [{"nome": "ABM", "unidade_organizacional_id": "u1", "ativa": True,
+                    "monitorar_saida": False}],
+        "resumo": {"campos_trecho": []},
+        "estado": {"arquivo": str(tmp_path / "estado.json")},
+    }
+    estado = Estado(str(tmp_path / "estado.json"))
+    novos, _ = monitor_mod._coletar(_Cliente(), config, estado)
+
+    numeros = [d["numero"] for d in novos]
+    assert DOC_SAIDA["numero"] not in numeros
+    assert len(novos) == 1 and novos[0]["sentido"] == doc_utils.SENTIDO_ENTRADA
+
+
+def test_config_de_producao_esta_com_saida_desligada():
+    """Se alguém ligar sem querer, o grupo recebe documentos que ninguém pediu."""
+    for secao in CONFIG["secoes"]:
+        assert secao.get("monitorar_saida") is False, secao["nome"]

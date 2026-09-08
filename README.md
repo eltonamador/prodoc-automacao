@@ -130,6 +130,46 @@ Verificado contra a caixa da ABM em 07/09/2026, com 100 documentos:
   "CORPO DE BOMBEIROS MILITAR DO ESTADO DO AMAPÁ" em todos — não distingue nada.
 - `documento.lido` diz o que é novo; `copia` marca o que veio para conhecimento.
 
+## Documentos emitidos pela própria seção (desativado)
+
+A listagem do Prodoc mistura o que a seção recebeu com o que ela mesma emitiu.
+O monitor sabe separar os dois, mas **avisa apenas os recebidos** — por decisão
+de 08/09/2026. A funcionalidade fica pronta e testada, atrás de
+`secoes[].monitorar_saida`, para o caso de o comando pedir.
+
+Como os dois se distinguem, verificado nos 100 documentos da caixa da ABM:
+
+| | Emitidos | Recebidos |
+|---|---|---|
+| `apenas_criado` | `true` (10 docs) | `false` (90 docs) |
+| `origem.sigla` | a própria seção | outras unidades |
+| `url_controle_distribuicao` | genérica, sem id | com id de tramitação |
+| `documento.lido` | `true` em 10 de 10 | varia |
+
+Emitidos nascem lidos, então a regra de "não lidos" nunca os selecionaria — por
+isso, ligados, eles usam outro critério de novidade: ainda não terem sido
+avisados.
+
+**Para reativar:**
+
+1. `secoes[].monitorar_saida: true` no `config.json`
+2. **Antes de deixar rodar**, adote o acumulado:
+   `monitorar --marcar-sem-enviar` — senão todos os emitidos que já existem vão
+   de uma vez para o grupo
+3. Confira com `monitorar --dry-run`
+
+Ligados, eles saem em bloco próprio, com `Situação` e `Criado em` no lugar do
+remetente, e sem urgência ou "exige providência": esses rótulos são a leitura de
+quem recebe e, num documento que a seção produziu, apareceriam como cobrança
+contra quem o fez.
+
+**Limitação conhecida.** O Prodoc não expõe "aguardando assinatura do
+comandante", "em rascunho" nem equivalente em campo algum da listagem —
+procurado nos 100 documentos, nenhuma ocorrência. A única situação que o dado
+sustenta é **"criado, ainda não tramitado"**, derivada de `tramitacao_id` e da
+url de distribuição. Um rótulo mais específico teria que vir da tela de detalhe
+do documento, que este projeto não abre por princípio.
+
 ## Triagem
 
 Os documentos vão para o Claude numa **única chamada**, com a resposta validada
