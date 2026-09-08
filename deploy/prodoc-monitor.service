@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+User=__USUARIO__
 WorkingDirectory=/opt/prodoc-automacao
 EnvironmentFile=/opt/prodoc-automacao/.env
 ExecStart=/opt/prodoc-automacao/.venv/bin/python prodoc_monitor.py monitorar
