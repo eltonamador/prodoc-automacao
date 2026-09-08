@@ -19,15 +19,28 @@ import sys
 import warnings
 
 from configuracao import carregar_config, carregar_credenciais
+from fuso import agora
 
 # O Python 3.9 do macOS é compilado com LibreSSL, e o urllib3 avisa sobre isso a
 # cada execução. É ruído cosmético que atrapalha enxergar o erro real nos logs.
 # Fica antes de qualquer import de requests, que é sempre sob demanda.
 warnings.filterwarnings("ignore", message=".*OpenSSL 1.1.1+.*")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+
+class _FormatadorHorarioLocal(logging.Formatter):
+    """Carimba os logs em horário de Amapá, não no relógio da VPS (UTC).
+
+    O systemd timer já dispara no horário local certo — mas sem isto, o
+    'quando aconteceu' dentro do log fica 3h à frente do relógio de quem lê.
+    """
+
+    def formatTime(self, record, datefmt=None):
+        return agora().strftime(datefmt or "%Y-%m-%d %H:%M:%S")
+
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger().handlers[0].setFormatter(
+    _FormatadorHorarioLocal("%(asctime)s -03 - %(levelname)s - %(message)s")
 )
 logger = logging.getLogger(__name__)
 

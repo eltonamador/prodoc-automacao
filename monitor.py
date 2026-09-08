@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 
 import documentos as doc_utils
 import entrega
 from configuracao import secoes_ativas
 from estado import Estado
+from fuso import agora
 from prodoc_client import ProdocClient, ProdocError
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ def _salvar_resultado(config: dict, novos: list[dict]) -> None:
     """Grava a última execução em disco — só para depuração local (gitignored)."""
     formato = config.get("output", {}).get("timestamp_format", "%Y-%m-%d %H:%M:%S")
     dados = {
-        "timestamp": datetime.now().strftime(formato),
+        "timestamp": agora().strftime(formato),
         "total_documentos": len(novos),
         "documentos": novos,
     }

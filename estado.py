@@ -16,7 +16,9 @@ import json
 import logging
 import os
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+from fuso import FUSO, agora
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,7 @@ class Estado:
         self._podar()
         dados = {
             "versao": VERSAO,
-            "atualizado_em": datetime.now().isoformat(timespec="seconds"),
+            "atualizado_em": agora().isoformat(timespec="seconds"),
             "documentos": self.documentos,
             "alertas": self.alertas,
         }
@@ -83,7 +85,7 @@ class Estado:
         logger.info("Estado salvo (%d documentos).", len(self.documentos))
 
     def _podar(self) -> None:
-        limite = datetime.now() - timedelta(days=self.reter_dias)
+        limite = agora() - timedelta(days=self.reter_dias)
         antes = len(self.documentos)
         self.documentos = {
             chave: registro
@@ -104,10 +106,10 @@ class Estado:
         return [d for d in documentos if not self.ja_notificado(d["chave"])]
 
     def marcar_notificados(self, documentos: Iterable[dict]) -> None:
-        agora = datetime.now().isoformat(timespec="seconds")
+        quando = agora().isoformat(timespec="seconds")
         for documento in documentos:
             self.documentos[documento["chave"]] = {
-                "notificado_em": agora,
+                "notificado_em": quando,
                 "numero": documento.get("numero", ""),
                 "secao": documento.get("secao", ""),
             }
@@ -120,11 +122,11 @@ class Estado:
         if not registro:
             return True
         ultimo = _data_do_registro(registro, "ultimo_em")
-        return datetime.now() - ultimo >= timedelta(hours=self.cooldown_alerta_horas)
+        return agora() - ultimo >= timedelta(hours=self.cooldown_alerta_horas)
 
     def registrar_alerta(self, tipo: str, mensagem: str = "") -> None:
         self.alertas[tipo] = {
-            "ultimo_em": datetime.now().isoformat(timespec="seconds"),
+            "ultimo_em": agora().isoformat(timespec="seconds"),
             "mensagem": mensagem[:500],
         }
 
@@ -133,9 +135,17 @@ class Estado:
         self.alertas.pop(tipo, None)
 
 
-def _data_do_registro(registro: dict, campo: str) -> datetime:
-    """Lê uma data ISO do estado; datas ilegíveis são tratadas como muito antigas."""
+def _data_do_registro(registro: dict, campo: str):
+    """Lê uma data ISO do estado; datas ilegíveis são tratadas como muito antigas.
+
+    Registros gravados antes desta mudança são "naive" (sem fuso) — para eles,
+    assume-se que já estavam em horário de Amapá, e o fuso é anexado sem
+    deslocar o valor.
+    """
+    from datetime import datetime as _datetime
+
     try:
-        return datetime.fromisoformat(registro.get(campo, ""))
+        data = _datetime.fromisoformat(registro.get(campo, ""))
     except (ValueError, TypeError):
-        return datetime.min
+        return _datetime.min.replace(tzinfo=FUSO)
+    return data if data.tzinfo else data.replace(tzinfo=FUSO)

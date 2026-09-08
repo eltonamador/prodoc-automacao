@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import documentos as doc_utils
 import entrega
+import fuso
 import monitor as monitor_mod
 import resumo as resumo_mod
 from estado import Estado, chave_do_documento
@@ -609,3 +610,33 @@ def test_concordancia_do_cabecalho_no_singular_e_no_plural():
 
     varios = entrega.formatar_mensagem([_doc("A"), _doc("B")], "ABM")
     assert "2 documentos novos não lidos" in varios
+
+
+# ----------------------------------------------------------------------
+# Fuso horário: logs e estado em horário de Amapá, não UTC da VPS
+# ----------------------------------------------------------------------
+
+
+def test_agora_esta_em_horario_de_amapa_nao_utc():
+    """A VPS roda com o relógio do SO em UTC; agora() tem que compensar isso."""
+    valor = fuso.agora()
+    assert valor.tzinfo is not None
+    assert valor.utcoffset().total_seconds() == -3 * 3600
+
+
+def test_estado_grava_timestamp_em_horario_local(tmp_path):
+    e = Estado(str(tmp_path / "estado.json"))
+    e.marcar_notificados([{"chave": "id:x", "numero": "A", "secao": "ABM"}])
+    registro = e.documentos["id:x"]
+    assert registro["notificado_em"].endswith("-03:00")
+
+
+def test_registro_antigo_sem_fuso_nao_quebra_o_cooldown(tmp_path):
+    """Estado gravado antes desta correção era 'naive' — não pode virar erro."""
+    arquivo = tmp_path / "estado.json"
+    arquivo.write_text(
+        '{"documentos": {}, "alertas": {"auth": {"ultimo_em": "2026-09-01T10:00:00"}}}',
+        encoding="utf-8",
+    )
+    e = Estado(str(arquivo), cooldown_alerta_horas=24)
+    assert e.pode_alertar("auth") is True
