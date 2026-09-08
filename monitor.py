@@ -113,7 +113,12 @@ def _salvar_resultado(config: dict, novos: list[dict]) -> None:
         logger.warning("Não consegui gravar %s: %s", ARQUIVO_RESULTADO, e)
 
 
-def executar(config: dict, credenciais: dict[str, str], dry_run: bool = False) -> int:
+def executar(
+    config: dict,
+    credenciais: dict[str, str],
+    dry_run: bool = False,
+    marcar_sem_enviar: bool = False,
+) -> int:
     parametros_estado = config.get("estado", {})
     estado = Estado(
         caminho=parametros_estado.get("arquivo", "estado_notificados.json"),
@@ -162,6 +167,19 @@ def executar(config: dict, credenciais: dict[str, str], dry_run: bool = False) -
     if not novos:
         logger.info("Nenhum documento novo. Nada a enviar.")
         estado.salvar()  # aproveita para podar registros antigos
+        return 0
+
+    # --- adoção do backlog ----------------------------------------------
+    if marcar_sem_enviar:
+        # Usado na estreia: a caixa acumulou meses de não lidos e despejar tudo
+        # de uma vez no grupo não ajuda ninguém. Não gera resumo, então também
+        # não gasta chamada de API.
+        estado.marcar_notificados(novos)
+        estado.salvar()
+        print(f"\n{len(novos)} documento(s) marcados como avisados, sem enviar nada:\n")
+        for documento in novos:
+            print(f"  {documento['numero']} — {documento['assunto'][:70]}")
+        print("\nA partir daqui, só o que chegar de novo será avisado.\n")
         return 0
 
     # --- resumos --------------------------------------------------------

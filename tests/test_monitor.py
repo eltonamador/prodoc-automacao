@@ -572,3 +572,30 @@ def test_saida_de_sucesso_ou_nao_json_passa():
     entrega._conferir_json_de_saida('{"action": "send", "ok": true}')
     entrega._conferir_json_de_saida("mensagem enviada")
     entrega._conferir_json_de_saida("")
+
+
+def test_marcar_sem_enviar_registra_tudo_e_nao_envia(tmp_path, monkeypatch):
+    """Estreia: adota o backlog sem despejar meses de documentos no grupo."""
+    enviados = []
+    monkeypatch.setattr(entrega, "enviar", lambda config, texto: enviados.append(texto))
+    monkeypatch.setattr(monitor_mod.entrega, "enviar", lambda config, texto: enviados.append(texto))
+
+    class _Cliente:
+        def __init__(self, *a, **k): pass
+        def autenticar(self): pass
+        def validar_sessao(self, u): pass
+        def listar_documentos(self, u): return [DOC_REAL]
+
+    monkeypatch.setattr(monitor_mod, "ProdocClient", _Cliente)
+    monkeypatch.chdir(tmp_path)
+
+    config = {
+        "secoes": [{"nome": "ABM", "unidade_organizacional_id": "u1", "ativa": True}],
+        "resumo": {"campos_trecho": []},
+        "estado": {"arquivo": str(tmp_path / "estado.json")},
+    }
+    cred = {"PRODOC_USER": "u", "PRODOC_PASSWORD": "p", "CLAUDE_API_KEY": "k"}
+
+    assert monitor_mod.executar(config, cred, marcar_sem_enviar=True) == 0
+    assert enviados == [], "não pode enviar nada"
+    assert Estado(str(tmp_path / "estado.json")).ja_notificado("id:x6X4NN1a60")

@@ -53,7 +53,8 @@
       ],
       "timeout": 20,
       "_comentario": "O OpenClaw roda em container Docker na VPS e traz um CLI próprio, já autenticado no WhatsApp — mais simples e mais estável que falar com o gateway por HTTP. O grupo de destino vem do .env (OPENCLAW_DESTINO), porque este repositório é público.",
-      "_comentario_http": "modo 'http' continua disponível: preencha url, campo_destino e campo_texto."
+      "_comentario_http": "modo 'http' continua disponível: preencha url, campo_destino e campo_texto.",
+      "_comentario_destino": "Destino: grupo de WhatsApp 'ABM - Forjando os Bombeiros do Amapá!', confirmado pelo usuário em 07/09/2026. O identificador (JID) fica em OPENCLAW_DESTINO no .env, porque este repositório é público."
     },
     "max_caracteres_mensagem": 3500
   },

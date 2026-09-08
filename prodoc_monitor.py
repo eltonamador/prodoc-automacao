@@ -69,7 +69,9 @@ def _cmd_monitorar(args) -> int:
 
     config = carregar_config(args.config)
     credenciais = carregar_credenciais()
-    return monitor.executar(config, credenciais, dry_run=args.dry_run)
+    return monitor.executar(
+        config, credenciais, dry_run=args.dry_run, marcar_sem_enviar=args.marcar_sem_enviar
+    )
 
 
 def _cmd_testar_envio(args) -> int:
@@ -103,6 +105,12 @@ def construir_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="mostra a mensagem que seria enviada, sem enviar e sem gravar estado",
+    )
+    p_mon.add_argument(
+        "--marcar-sem-enviar",
+        action="store_true",
+        help="registra os não lidos atuais como já avisados, sem enviar nada "
+             "(use na estreia, para não despejar o acumulado no grupo)",
     )
     p_mon.set_defaults(func=_cmd_monitorar)
 
