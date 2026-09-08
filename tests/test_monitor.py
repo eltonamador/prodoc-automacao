@@ -599,3 +599,13 @@ def test_marcar_sem_enviar_registra_tudo_e_nao_envia(tmp_path, monkeypatch):
     assert monitor_mod.executar(config, cred, marcar_sem_enviar=True) == 0
     assert enviados == [], "não pode enviar nada"
     assert Estado(str(tmp_path / "estado.json")).ja_notificado("id:x6X4NN1a60")
+
+
+def test_concordancia_do_cabecalho_no_singular_e_no_plural():
+    """'1 documento novo não lidos' saiu numa mensagem real antes desta correção."""
+    um = entrega.formatar_mensagem([_doc("A")], "ABM")
+    assert "1 documento novo não lido" in um
+    assert "não lidos" not in um.split("\n")[1]
+
+    varios = entrega.formatar_mensagem([_doc("A"), _doc("B")], "ABM")
+    assert "2 documentos novos não lidos" in varios

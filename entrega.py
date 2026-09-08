@@ -77,8 +77,12 @@ def formatar_documento(indice: int, documento: dict, marcar_sem_trecho: bool = T
 
 def formatar_mensagem(documentos: list[dict], secao: str) -> str:
     ordenados = ordenar_por_prioridade(documentos)
-    plural = "documento novo" if len(ordenados) == 1 else "documentos novos"
-    cabecalho = f"*Prodoc — {secao}*\n{len(ordenados)} {plural} não lidos"
+    quantidade = len(ordenados)
+    contagem = (
+        "1 documento novo não lido" if quantidade == 1
+        else f"{quantidade} documentos novos não lidos"
+    )
+    cabecalho = f"*Prodoc — {secao}*\n{contagem}"
 
     com_acao = sum(1 for d in ordenados if d.get("acao_requerida"))
     if com_acao:
