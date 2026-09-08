@@ -12,6 +12,8 @@ import logging
 import os
 import subprocess
 
+from documentos import SENTIDO_SAIDA
+
 logger = logging.getLogger(__name__)
 
 VARIAVEL_TOKEN = "OPENCLAW_TOKEN"
@@ -47,6 +49,9 @@ def ordenar_por_prioridade(documentos: list[dict]) -> list[dict]:
 
 
 def formatar_documento(indice: int, documento: dict, marcar_sem_trecho: bool = True) -> str:
+    if documento.get("sentido") == SENTIDO_SAIDA:
+        return _formatar_saida(indice, documento, marcar_sem_trecho)
+
     marca = MARCA_URGENCIA.get(documento.get("urgencia", "baixa"), "")
     linhas = [
         f"{marca} *{indice}. {documento['tipo']} {documento['numero']}*".strip(),
@@ -75,32 +80,87 @@ def formatar_documento(indice: int, documento: dict, marcar_sem_trecho: bool = T
     return "\n".join(linhas)
 
 
-def formatar_mensagem(documentos: list[dict], secao: str) -> str:
-    ordenados = ordenar_por_prioridade(documentos)
-    quantidade = len(ordenados)
-    contagem = (
-        "1 documento novo não lido" if quantidade == 1
-        else f"{quantidade} documentos novos não lidos"
-    )
-    cabecalho = f"*Prodoc — {secao}*\n{contagem}"
+def _formatar_saida(indice: int, documento: dict, marcar_sem_trecho: bool = True) -> str:
+    """Bloco de um documento que a própria seção emitiu.
 
-    com_acao = sum(1 for d in ordenados if d.get("acao_requerida"))
+    Sem urgência nem "exige providência": esses rótulos são leitura de quem
+    recebe. Aqui o que interessa é para onde foi e em que pé está.
+    """
+    linhas = [f"*{indice}. {documento['tipo']} {documento['numero']}*"]
+
+    status = (documento.get("status") or "").strip()
+    if status:
+        linhas.append(f"Situação: *{status}*")
+    if documento.get("data"):
+        linhas.append(f"Criado em: {documento['data']}")
+    linhas.append(f"Assunto: {documento['assunto']}")
+
+    resumo = (documento.get("resumo") or "").strip()
+    if resumo:
+        linhas.append("")
+        linhas.append(resumo)
+        if marcar_sem_trecho and documento.get("origem_resumo") == "titulo":
+            linhas.append("_(só pela identificação)_")
+
+    return "\n".join(linhas)
+
+
+def formatar_mensagem(documentos: list[dict], secao: str) -> str:
+    """Monta a mensagem, separando o que a seção recebeu do que ela emitiu.
+
+    As duas categorias respondem a perguntas diferentes — "o que preciso
+    despachar?" e "o que saiu daqui?" — e misturá-las numa lista só obrigaria
+    quem lê a classificar item por item.
+    """
+    recebidos = [d for d in documentos if d.get("sentido") != SENTIDO_SAIDA]
+    emitidos = [d for d in documentos if d.get("sentido") == SENTIDO_SAIDA]
+
+    partes = [_cabecalho(recebidos, emitidos, secao)]
+
+    # Quando nada trouxe texto, a ressalva vai uma vez no cabeçalho em vez de
+    # se repetir em cada item.
+    sem_trecho = [d for d in documentos if d.get("origem_resumo") == "titulo"]
+    todos_sem_trecho = bool(sem_trecho) and len(sem_trecho) == len(documentos)
+    if todos_sem_trecho:
+        partes[0] += "\n_Avaliado só pela identificação — os documentos não foram abertos._"
+
+    marcar = not todos_sem_trecho
+    indice = 1
+
+    if recebidos:
+        if emitidos:
+            partes.append(f"*RECEBIDOS ({len(recebidos)})*")
+        for documento in ordenar_por_prioridade(recebidos):
+            partes.append(formatar_documento(indice, documento, marcar_sem_trecho=marcar))
+            indice += 1
+
+    if emitidos:
+        partes.append(f"*EMITIDOS PELA {secao} ({len(emitidos)})*")
+        for documento in emitidos:
+            partes.append(formatar_documento(indice, documento, marcar_sem_trecho=marcar))
+            indice += 1
+
+    return "\n\n".join(partes)
+
+
+def _cabecalho(recebidos: list[dict], emitidos: list[dict], secao: str) -> str:
+    contagens = []
+    if recebidos:
+        contagens.append(
+            "1 documento novo não lido" if len(recebidos) == 1
+            else f"{len(recebidos)} documentos novos não lidos"
+        )
+    if emitidos:
+        contagens.append(
+            "1 documento emitido" if len(emitidos) == 1
+            else f"{len(emitidos)} documentos emitidos"
+        )
+    cabecalho = f"*Prodoc — {secao}*\n" + " · ".join(contagens)
+
+    com_acao = sum(1 for d in recebidos if d.get("acao_requerida"))
     if com_acao:
         cabecalho += f" · *{com_acao} exige{'m' if com_acao > 1 else ''} providência*"
-
-    # A ressalva vale para todos quando nenhum documento trouxe texto: repeti-la
-    # em cada item era ruído. Se só alguns vierem sem trecho, marca-se por item.
-    sem_trecho = [d for d in ordenados if d.get("origem_resumo") == "titulo"]
-    todos_sem_trecho = bool(sem_trecho) and len(sem_trecho) == len(ordenados)
-    if todos_sem_trecho:
-        cabecalho += "\n_Avaliado só pela identificação — os documentos não foram abertos._"
-
-    # Quando a ressalva já está no cabeçalho, repeti-la por item é ruído.
-    blocos = [
-        formatar_documento(i, d, marcar_sem_trecho=not todos_sem_trecho)
-        for i, d in enumerate(ordenados, 1)
-    ]
-    return cabecalho + "\n\n" + "\n\n".join(blocos)
+    return cabecalho
 
 
 def formatar_alerta(titulo: str, detalhe: str) -> str:

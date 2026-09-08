@@ -62,8 +62,19 @@ def _coletar(cliente: ProdocClient, config: dict, estado: Estado) -> tuple[list[
             continue
 
         crus = cliente.listar_documentos(unidade)
-        nao_lidos = [d for d in crus if doc_utils.esta_nao_lido(d)]
-        normalizados = doc_utils.normalizar_lista(nao_lidos, nome, campos_trecho, minimo)
+
+        # Entrada e saída pedem critérios diferentes de "novidade". Um documento
+        # recebido é novo enquanto não foi lido. Um documento que a própria
+        # unidade emitiu nasce com lido=True — nos 10 da amostra, sem exceção —
+        # então "não lido" nunca o selecionaria. Para esses, novidade é
+        # simplesmente ainda não ter sido avisado, e quem garante isso é o
+        # estado persistente.
+        entrada = [d for d in crus if not doc_utils.eh_saida(d) and doc_utils.esta_nao_lido(d)]
+        saida = [d for d in crus if doc_utils.eh_saida(d)] if secao.get("monitorar_saida") else []
+        if saida:
+            logger.info("Seção %s: %d documento(s) emitidos pela própria seção.", nome, len(saida))
+
+        normalizados = doc_utils.normalizar_lista(entrada + saida, nome, campos_trecho, minimo)
 
         # A caixa hoje só recebe ABM, mas se passar a receber outra seção o
         # filtro evita avisar o que não é desta seção.
@@ -90,8 +101,8 @@ def _coletar(cliente: ProdocClient, config: dict, estado: Estado) -> tuple[list[
 
         ineditos = estado.filtrar_novos(normalizados)
         logger.info(
-            "Seção %s: %d na listagem, %d não lidos, %d ainda não avisados.",
-            nome, len(crus), len(nao_lidos), len(ineditos),
+            "Seção %s: %d na listagem, %d recebidos não lidos, %d emitidos, %d ainda não avisados.",
+            nome, len(crus), len(entrada), len(saida), len(ineditos),
         )
         novos.extend(ineditos)
 

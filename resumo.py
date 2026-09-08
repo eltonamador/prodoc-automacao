@@ -22,6 +22,8 @@ import logging
 
 import anthropic
 
+from documentos import SENTIDO_SAIDA
+
 logger = logging.getLogger(__name__)
 
 SISTEMA = (
@@ -127,9 +129,23 @@ def _bloco_do_documento(indice: int, documento: dict) -> str:
     ]
     if documento.get("assunto_alternativo"):
         linhas.append(f"Assunto na distribuição: {documento['assunto_alternativo']}")
-    linhas.append(f"Enviado por: {documento['remetente']}")
-    if documento.get("copia"):
-        linhas.append("Recebido como CÓPIA (encaminhado para conhecimento, não endereçado diretamente).")
+    if documento.get("sentido") == SENTIDO_SAIDA:
+        # Sem esta marcação, o modelo lê um ofício que a própria seção emitiu
+        # como se fosse cobrança recebida, e conclui "exige providência" ao
+        # contrário.
+        linhas.append(
+            "EMITIDO PELA PRÓPRIA SEÇÃO (documento de saída, produzido aqui — "
+            "não é cobrança recebida). Resuma o que a seção está pedindo ou "
+            "comunicando a terceiros."
+        )
+        if documento.get("status"):
+            linhas.append(f"Situação: {documento['status']}")
+    else:
+        linhas.append(f"Enviado por: {documento['remetente']}")
+        if documento.get("copia"):
+            linhas.append(
+                "Recebido como CÓPIA (encaminhado para conhecimento, não endereçado diretamente)."
+            )
 
     trecho = documento.get("trecho")
     if trecho:
@@ -204,6 +220,14 @@ class Resumidor:
                 continue
             documento["resumo"] = item["resumo"].strip()
             documento["origem_resumo"] = ORIGEM_TRECHO if documento.get("trecho") else ORIGEM_TITULO
+            if documento.get("sentido") == SENTIDO_SAIDA:
+                # Urgência e "exige providência" são a leitura de quem recebe.
+                # Num documento que a seção emitiu, esses rótulos inverteriam o
+                # sentido — apareceria como cobrança contra quem a fez.
+                documento["urgencia"] = "baixa"
+                documento["acao_requerida"] = False
+                documento["prazo"] = None
+                continue
             documento["urgencia"] = item.get("urgencia", "baixa")
             documento["acao_requerida"] = bool(item.get("acao_requerida"))
             documento["prazo"] = _prazo_confiavel(documento, item.get("prazo"))

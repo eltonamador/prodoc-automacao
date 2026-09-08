@@ -640,3 +640,85 @@ def test_registro_antigo_sem_fuso_nao_quebra_o_cooldown(tmp_path):
     )
     e = Estado(str(arquivo), cooldown_alerta_horas=24)
     assert e.pode_alertar("auth") is True
+
+
+# ----------------------------------------------------------------------
+# Entrada x saída: documentos que a própria seção emitiu
+# ----------------------------------------------------------------------
+
+# Payload real de 0646/2026/ABM/CBMAP, emitido pela ABM (08/09/2026).
+DOC_SAIDA = {
+    "id": "dBbRjVwXBP",
+    "tipo": {"nome": "OFICIO INTERNO"},
+    "numero": "0646/2026/ABM/CBMAP",
+    "assunto": {"assunto": "SOLICITAÇÃO DE CAUTELA DE FUZIS"},
+    "origem": {"sigla": "ABM", "nome": "ACADEMIA DE BOMBEIRO MILITAR"},
+    "destino": "ABM",
+    "data_criacao": "08/09/2026 09:22",
+    "documento": {"id": "dBbRjVwXBP", "lido": True},
+    "apenas_criado": True,
+    "tramitacao_id": None,
+    "url_controle_distribuicao": "https://prodoc.ap.gov.br/documentos/historico_tramitacao",
+}
+
+
+def test_apenas_criado_identifica_documento_emitido():
+    assert doc_utils.eh_saida(DOC_SAIDA) is True
+    assert doc_utils.eh_saida(DOC_REAL) is False
+
+
+def test_documento_emitido_recebe_sentido_e_situacao():
+    n = doc_utils.normalizar(DOC_SAIDA, "ABM", [], 80)
+    assert n["sentido"] == doc_utils.SENTIDO_SAIDA
+    assert n["status"] == doc_utils.STATUS_NAO_TRAMITADO
+
+
+def test_documento_recebido_nao_ganha_situacao():
+    n = doc_utils.normalizar(DOC_REAL, "ABM", [], 80)
+    assert n["sentido"] == doc_utils.SENTIDO_ENTRADA
+    assert n["status"] == ""
+
+
+def test_situacao_muda_quando_ha_tramitacao():
+    com_tramite = dict(DOC_SAIDA, url_controle_distribuicao="https://x/historico_tramitacao/AbC123")
+    assert doc_utils.status_de_saida(com_tramite) == doc_utils.STATUS_TRAMITADO
+
+
+def test_emitido_nao_herda_urgencia_nem_exige_providencia(monkeypatch):
+    """O modelo pode marcar 'exige providência'; para emitidos isso inverte o sentido."""
+    docs = [doc_utils.normalizar(DOC_SAIDA, "ABM", [], 80)]
+    payload = json.dumps({"documentos": [
+        {"ref": 1, "resumo": "Solicita cautela de fuzis.", "urgencia": "alta",
+         "acao_requerida": True, "prazo": "10/09/2026"}
+    ]})
+    _resumidor(monkeypatch, [payload]).resumir_lista(docs)
+    assert docs[0]["resumo"] == "Solicita cautela de fuzis."
+    assert docs[0]["acao_requerida"] is False
+    assert docs[0]["urgencia"] == "baixa"
+    assert docs[0]["prazo"] is None
+
+
+def test_mensagem_separa_recebidos_de_emitidos():
+    recebido = _doc("A", acao=True)
+    emitido = dict(_doc("B"), sentido=doc_utils.SENTIDO_SAIDA,
+                   status=doc_utils.STATUS_NAO_TRAMITADO)
+    texto = entrega.formatar_mensagem([recebido, emitido], "ABM")
+    assert "*RECEBIDOS (1)*" in texto
+    assert "*EMITIDOS PELA ABM (1)*" in texto
+    assert texto.index("RECEBIDOS") < texto.index("EMITIDOS")
+    assert "Situação: *criado, ainda não tramitado*" in texto
+
+
+def test_bloco_de_emitido_nao_traz_rotulos_de_quem_recebe():
+    emitido = dict(_doc("B"), sentido=doc_utils.SENTIDO_SAIDA,
+                   status=doc_utils.STATUS_NAO_TRAMITADO, data="08/09/2026 09:22")
+    bloco = entrega.formatar_documento(1, emitido)
+    assert "Exige providência" not in bloco
+    assert "De:" not in bloco
+    assert "Criado em:" in bloco
+
+
+def test_sem_emitidos_a_mensagem_nao_ganha_secoes():
+    """Mensagem só com recebidos continua igual à de antes desta mudança."""
+    texto = entrega.formatar_mensagem([_doc("A"), _doc("B")], "ABM")
+    assert "RECEBIDOS" not in texto and "EMITIDOS" not in texto

@@ -11,7 +11,9 @@
       "unidade_organizacional_id": "bKnmJoD6WZ",
       "ativa": true,
       "_comentario": "Confirmado em 07/09/2026: a unidade bKnmJoD6WZ é a caixa da ABM — os 100 documentos da listagem têm destino=ABM. filtro_destino é uma trava: se a caixa passar a receber outra seção, só o que for ABM é avisado. Para monitorar outra seção, acrescente uma entrada nesta lista.",
-      "filtro_destino": "ABM"
+      "filtro_destino": "ABM",
+      "monitorar_saida": true,
+      "_comentario_saida": "monitorar_saida: avisa também os documentos que a própria seção emitiu (apenas_criado=true no payload). Eles nascem com lido=true, então nunca apareceriam pela regra de não lidos."
     }
   ],
   "api_parameters": {
