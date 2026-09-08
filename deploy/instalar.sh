@@ -34,13 +34,17 @@ fi
 
 passo "2/6 Copiando o projeto para $DESTINO"
 mkdir -p "$DESTINO"
+if [ "$ORIGEM" = "$DESTINO" ]; then
+    echo "  já está em $DESTINO (nada a copiar)"
+else
 # Copia só o que vem do repositório. O .env e o estado_notificados.json não
 # estão nesta lista, então sobrevivem intactos a cada reinstalação.
-cp "$ORIGEM"/*.py "$ORIGEM"/config.json "$ORIGEM"/pyproject.toml \
-   "$ORIGEM"/uv.lock "$ORIGEM"/requirements.txt "$ORIGEM"/README.md "$DESTINO"/
-mkdir -p "$DESTINO/tests" && cp "$ORIGEM"/tests/*.py "$DESTINO/tests/"
+    cp "$ORIGEM"/*.py "$ORIGEM"/config.json "$ORIGEM"/pyproject.toml \
+       "$ORIGEM"/uv.lock "$ORIGEM"/requirements.txt "$ORIGEM"/README.md "$DESTINO"/
+    mkdir -p "$DESTINO/tests" && cp "$ORIGEM"/tests/*.py "$DESTINO/tests/"
+    echo "  copiado (o .env e o estado existentes foram preservados)"
+fi
 chown -R "$USUARIO_SERVICO":"$USUARIO_SERVICO" "$DESTINO"
-echo "  copiado (o .env e o estado existentes foram preservados)"
 
 passo "3/6 Instalando dependências"
 if [ "$GERENCIADOR" = uv ]; then
