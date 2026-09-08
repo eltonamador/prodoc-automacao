@@ -1,8 +1,8 @@
 name: Testes
 
 # O monitoramento agendado saiu daqui e passou a rodar na VPS (systemd timer).
-# Motivos: (1) o cron do GitHub é desativado após 60 dias sem atividade no
-# repositório — foi o que derrubou este projeto em silêncio; (2) o repositório é
+# Motivos: (1) o agendamento aqui falhou em todas as execuções até 26/04/2026 e
+# depois parou, sem causa recuperável — os logs expiraram; (2) o repositório é
 # público, e o log do Actions exibiria assunto e remetente de documentos
 # internos do CBMAP. Aqui ficam só os testes, que não tocam em dado real.
 

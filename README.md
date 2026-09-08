@@ -157,20 +157,31 @@ uv run ruff check .
 
 ## A falha original
 
-Duas causas, ambas corrigidas:
+Levantado no histórico de execuções do próprio Actions (166 execuções):
 
-1. **Booleanos com maiúscula.** O `config.json` traz `"search": false`, que o
-   `requests` serializava como a string `"False"` na URL — e o Prodoc responde
-   HTTP 500 a isso. O código antigo tratava o 500 como "caixa vazia" e
-   encerrava com sucesso: **o job ficava verde sem nunca ter lido nada.** Agora
-   a conversão para `"false"` acontece no transporte, e um 500 vira erro alto.
-2. **Cron desativado.** O GitHub desliga workflows agendados após 60 dias sem
-   atividade no repositório. Sem execução, nem o código de erro aparecia.
+- O workflow **rodou agendado e falhou em todas as execuções** até 26/04/2026,
+  quando parou de rodar. O passo que quebrava era "Executar monitoramento
+  Prodoc", e o "Upload resultado" ficava *skipped* — o script saía com erro
+  antes de gravar qualquer arquivo.
+- Os logs daquelas execuções passaram da retenção de 90 dias, então a exceção
+  exata não é recuperável. A assinatura — morrer antes de gravar o resultado,
+  sempre — é compatível com o `ValueError("Credenciais ausentes")` que o
+  construtor levantava quando um secret estava vazio. É hipótese, não fato.
+- Por que as execuções pararam em 26/04 não foi determinado. A regra dos 60
+  dias de inatividade do GitHub não explica: o último commit é de 29/03, 28
+  dias antes.
+
+Um segundo defeito, esse verificado ao vivo: os booleanos do `config.json` iam
+para a URL como `"False"` com maiúscula, e o Prodoc responde HTTP 500 a isso. O
+código antigo tratava o 500 como caixa vazia e encerraria com **sucesso** — não
+foi o que deixou os jobs vermelhos, mas tornaria o monitor inútil de qualquer
+forma. Corrigido na camada de transporte.
 
 ## Por que não roda mais no GitHub Actions
 
-O cron do GitHub é desativado automaticamente após 60 dias sem atividade no
-repositório — foi o que derrubou este projeto em silêncio entre março e
-setembro de 2026. Além disso, o repositório é público: o log do Actions
-exibiria assunto e remetente de documentos internos. A execução agendada agora
-é só na VPS; o workflow que restou roda apenas os testes.
+O agendamento no Actions se mostrou frágil: as execuções falharam por meses e
+depois simplesmente pararam, sem que a causa seja recuperável hoje. Além disso,
+o repositório é público — o log do Actions exibiria assunto e remetente de
+documentos internos do CBMAP. A execução agendada agora é só na VPS, com
+systemd; o workflow que restou roda apenas lint e testes, que não tocam em dado
+real.
