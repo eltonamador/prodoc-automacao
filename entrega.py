@@ -7,6 +7,7 @@ mexer só neste arquivo.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import subprocess
@@ -204,6 +205,31 @@ def _enviar_cli(openclaw: dict, texto: str) -> None:
         saida = (processo.stderr or processo.stdout)[:300]
         raise EntregaError(
             f"Comando do OpenClaw saiu com código {processo.returncode}: {saida}"
+        )
+
+    # Código de saída zero não é prova de entrega: alguns CLIs relatam o erro
+    # no JSON e ainda assim saem com sucesso. Sem esta checagem, uma falha de
+    # envio seria contada como enviada e o documento nunca mais apareceria.
+    _conferir_json_de_saida(processo.stdout)
+
+
+def _conferir_json_de_saida(saida: str) -> None:
+    texto = (saida or "").strip()
+    if not texto.startswith(("{", "[")):
+        return
+    try:
+        dados = json.loads(texto)
+    except ValueError:
+        return
+    if not isinstance(dados, dict):
+        return
+    if dados.get("error") or dados.get("ok") is False or dados.get("success") is False:
+        detalhe = dados.get("error") or dados.get("message") or texto[:200]
+        raise EntregaError(f"OpenClaw recusou o envio: {detalhe}")
+    if dados.get("dryRun"):
+        raise EntregaError(
+            "O comando do OpenClaw está com --dry-run: nada foi entregue. "
+            "Remova a opção de entrega.openclaw.comando no config.json."
         )
 
 

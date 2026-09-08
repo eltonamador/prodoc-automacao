@@ -549,3 +549,26 @@ def test_campo_destino_ausente_ignora_o_filtro_em_vez_de_apagar_tudo(tmp_path):
     )
     assert len(novos) == 1, "o documento não pode sumir por causa de um campo que o Prodoc removeu"
     assert ignorados == ["ABM"], "e a seção afetada precisa ser reportada para virar alerta"
+
+
+# ----------------------------------------------------------------------
+# Entrega por CLI: código de saída zero não é prova de entrega
+# ----------------------------------------------------------------------
+
+def test_json_de_erro_no_stdout_vira_falha_mesmo_com_saida_zero():
+    """Se um erro de envio passasse por entregue, o documento sumiria para sempre."""
+    with pytest.raises(entrega.EntregaError, match="recusou"):
+        entrega._conferir_json_de_saida('{"error": "not connected"}')
+    with pytest.raises(entrega.EntregaError, match="recusou"):
+        entrega._conferir_json_de_saida('{"ok": false, "message": "sessão caiu"}')
+
+
+def test_dry_run_esquecido_no_comando_e_detectado():
+    with pytest.raises(entrega.EntregaError, match="dry-run"):
+        entrega._conferir_json_de_saida('{"action": "send", "dryRun": true}')
+
+
+def test_saida_de_sucesso_ou_nao_json_passa():
+    entrega._conferir_json_de_saida('{"action": "send", "ok": true}')
+    entrega._conferir_json_de_saida("mensagem enviada")
+    entrega._conferir_json_de_saida("")

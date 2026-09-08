@@ -34,15 +34,26 @@
   "entrega": {
     "canal": "openclaw",
     "openclaw": {
-      "modo": "http",
-      "url": "",
+      "modo": "cli",
       "destino": "",
-      "cabecalho_auth": "Authorization",
-      "campo_destino": "chat_id",
-      "campo_texto": "text",
-      "comando": [],
+      "comando": [
+        "docker",
+        "exec",
+        "openclaw-2iph-openclaw-1",
+        "openclaw",
+        "message",
+        "send",
+        "--channel",
+        "whatsapp",
+        "--target",
+        "{destino}",
+        "--message",
+        "{texto}",
+        "--json"
+      ],
       "timeout": 20,
-      "_comentario": "url e destino vêm do .env (OPENCLAW_URL / OPENCLAW_DESTINO) — o repositório é público."
+      "_comentario": "O OpenClaw roda em container Docker na VPS e traz um CLI próprio, já autenticado no WhatsApp — mais simples e mais estável que falar com o gateway por HTTP. O grupo de destino vem do .env (OPENCLAW_DESTINO), porque este repositório é público.",
+      "_comentario_http": "modo 'http' continua disponível: preencha url, campo_destino e campo_texto."
     },
     "max_caracteres_mensagem": 3500
   },
