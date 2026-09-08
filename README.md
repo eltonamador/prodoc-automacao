@@ -64,6 +64,33 @@ os documentos nunca ficam lidos no Prodoc, sem esse arquivo cada execução
 reenviaria tudo de novo. Fica fora do Git — faça backup dele na VPS, não do
 repositório.
 
+## Como descobrir o identificador de um grupo de WhatsApp
+
+Necessário ao apontar o monitor para um grupo novo. O OpenClaw **não** lista os
+grupos da conta: `directory groups list` só mostra os que ele já usou, e
+`directory peers` volta vazio. O identificador está no store do Baileys, no
+*nome* dos arquivos de chave de grupo.
+
+1. Descubra o seu LID (o id interno do WhatsApp) a partir do seu telefone:
+
+```bash
+grep -la "SEU_NUMERO" /docker/openclaw-2iph/data/.openclaw/credentials/whatsapp/default/lid-mapping-*
+```
+
+O nome do arquivo é `lid-mapping-<SEU_LID>_reverse.json`.
+
+2. Mande uma mensagem qualquer no grupo desejado, pelo celular.
+
+3. Liste os grupos onde você tem chave, por horário — o mais recente é aquele:
+
+```bash
+D=/docker/openclaw-2iph/data/.openclaw/credentials/whatsapp/default
+ls -t "$D" | grep -a "g\.us--SEU_LID_1--" | head -5
+```
+
+4. Confirme com um envio de teste antes de confiar: `testar-envio`. O
+identificador sozinho não prova qual grupo é.
+
 ## Deploy na VPS
 
 ```bash
